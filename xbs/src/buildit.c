@@ -42,6 +42,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <dirent.h>
 
 #include "xbs.h"
 
@@ -64,6 +65,7 @@ typedef struct {
     bool noinstallsrc;
     bool nosum;
     bool noverify;
+    bool ignoredeps;
     bool archive;
     bool verbose;
     int parallel;
@@ -92,8 +94,9 @@ usage_buildit(FILE *f)
 "  -arch NAME            architecture to build (repeatable; default: host)\n"
 "  -project NAME         project / build alias name (default: basename of srcroot)\n"
 "  -buildAlias NAME      xnu-style alias name (alias for -project)\n"
-"  -conf FILE            project database (aliases/trains); default: $XBS_CONF,\n"
-"                        else <bindir>/conf or <bindir>/../share/xbs/conf\n"
+"  -conf FILE            project database (aliases/trains/dependencies);\n"
+"                        default: $XBS_CONF, else <bindir>/conf or\n"
+"                        <bindir>/../share/xbs/conf\n"
 "  -release TRAIN        release train (RC_RELEASE)\n"
 "  -version VERSION      explicit source version (default: parsed from the path,\n"
 "                        then from git describe when the path has no version)\n"
@@ -110,6 +113,7 @@ usage_buildit(FILE *f)
 "  -archive              also leave <proj>-<ver>~dst.tgz of the built root\n"
 "  -noinstallsrc         build in place, do not shadow-copy sources\n"
 "  -noclean              do not clean before building\n"
+"  -ignoreDependencies   do not gate on missing dependency roots\n"
 "  -nosum                do not compute/store the build sum\n"
 "  -noverify             do not compare the build sum against the previous\n"
 "  -verbose              echo every command\n"
@@ -131,6 +135,7 @@ parse_args(int argc, char **argv, opts *o)
     o->srcroot = NULL;
     o->clean = true;
     o->noinstallsrc = o->nosum = o->noverify = false;
+    o->ignoredeps = false;
     o->archive = o->verbose = false;
     o->parallel = 0;
 
@@ -175,6 +180,8 @@ parse_args(int argc, char **argv, opts *o)
             o->noinstallsrc = true;
         else if (!strcmp(a, "-noclean"))
             o->clean = false;
+        else if (!strcmp(a, "-ignoreDependencies"))
+            o->ignoredeps = true;
         else if (!strcmp(a, "-nosum"))
             o->nosum = true;
         else if (!strcmp(a, "-noverify"))
@@ -213,6 +220,46 @@ typedef struct {
 
 static xcode_alias *g_aliases = NULL;
 static size_t g_naliases = 0, g_capaliases = 0;
+
+typedef struct {
+    char *project;             /* the project that has the dependency */
+    char *dep;                 /* dependency project name */
+    char *ver;                 /* pinned version, or NULL for any */
+} dependency;
+
+static dependency *g_deps = NULL;
+static size_t g_ndeps = 0, g_capdeps = 0;
+
+static void
+dep_add(const char *project, const char *dep, const char *ver)
+{
+    dependency *d;
+    if (g_ndeps == g_capdeps) {
+        g_capdeps = g_capdeps ? g_capdeps * 2 : 8;
+        g_deps = realloc(g_deps, g_capdeps * sizeof(dependency));
+        if (!g_deps)
+            die("out of memory");
+    }
+    d = &g_deps[g_ndeps++];
+    memset(d, 0, sizeof *d);
+    d->project = xstrdup(project);
+    d->dep = xstrdup(dep);
+    d->ver = ver ? xstrdup(ver) : NULL;
+}
+
+static void
+free_deps(void)
+{
+    size_t i;
+    for (i = 0; i < g_ndeps; i++) {
+        free(g_deps[i].project);
+        free(g_deps[i].dep);
+        free(g_deps[i].ver);
+    }
+    free(g_deps);
+    g_deps = NULL;
+    g_ndeps = g_capdeps = 0;
+}
 
 static void
 alias_add(const char *prefix, const char *subdir,
@@ -269,6 +316,19 @@ parse_conf_line(char *line)
                 warn("conf: unknown alias keyword '%s'", tokens[j]);
         }
         alias_add(tokens[1], tokens[2], config, target);
+    } else if (!strcmp(tokens[0], "dependency")) {
+        const char *ver = NULL;
+        if (nt < 3) {
+            warn("conf: malformed dependency directive at '%s'", line);
+            return;
+        }
+        for (j = 3; j + 1 < nt; j++) {
+            if (!strcmp(tokens[j], "version"))
+                ver = tokens[++j];
+            else
+                warn("conf: unknown dependency keyword '%s'", tokens[j]);
+        }
+        dep_add(tokens[1], tokens[2], ver);
     } else {
         warn("conf: ignoring unknown directive '%s'", tokens[0]);
     }
@@ -325,7 +385,11 @@ load_conf(const opts *o)
     }
     parse_conf_line(trim(line));
     free(data);
-    printf("xbs: conf: %zu alias(es) from %s\n", g_naliases, path);
+    if (g_ndeps)
+        printf("xbs: conf: %zu alias(es), %zu dependenc%s from %s\n",
+               g_naliases, g_ndeps, g_ndeps == 1 ? "y" : "ies", path);
+    else
+        printf("xbs: conf: %zu alias(es) from %s\n", g_naliases, path);
     free(path);
 }
 
@@ -357,6 +421,130 @@ find_alias(const char *project)
         }
     }
     return hit;
+}
+
+/* ---- dependency version gates ---- */
+
+/* Dependencies declared for project: longest-prefix match (an exact name is
+ * inherently the longest prefix), consistent with find_alias above.  Returns a
+ * NULL-terminated array into the registry, or NULL when none. */
+static dependency **
+deps_for_project(const char *project)
+{
+    dependency **list = NULL;
+    size_t i, n = 0, best = 0;
+
+    for (i = 0; i < g_ndeps; i++) {
+        size_t m = strlen(g_deps[i].project);
+        if (strncmp(project, g_deps[i].project, m) == 0 && m > best)
+            best = m;
+    }
+    if (best == 0)
+        return NULL;
+    for (i = 0; i < g_ndeps; i++) {
+        size_t m = strlen(g_deps[i].project);
+        if (m == best && strncmp(project, g_deps[i].project, m) == 0) {
+            list = realloc(list, (n + 2) * sizeof(*list));
+            if (!list)
+                die("out of memory");
+            list[n++] = &g_deps[i];
+        }
+    }
+    list[n] = NULL;
+    return list;
+}
+
+/* Does <rootsbase>/<dep>[-<ver>].roots contain a built ~dst? */
+static bool
+dep_root_built(const char *rootsbase, const char *dep, const char *ver,
+               char *found, size_t n)
+{
+    char *p;
+    size_t plen;
+    DIR *d;
+    struct dirent *e;
+
+    if (ver) {
+        p = xasprintf("%s/%s-%s.roots/~dst", rootsbase, dep, ver);
+        if (dir_exists(p)) {
+            if (found)
+                snprintf(found, n, "%s", p);
+            free(p);
+            return true;
+        }
+        free(p);
+        return false;
+    }
+
+    /* No pinned version: accept any <dep>-*.roots/~dst. */
+    plen = strlen(dep);
+    d = opendir(rootsbase);
+    if (d) {
+        while ((e = readdir(d)) != NULL) {
+            size_t l = strlen(e->d_name);
+            if (strncmp(e->d_name, dep, plen) || e->d_name[plen] != '-')
+                continue;
+            if (l < 6 || strcmp(e->d_name + l - 6, ".roots"))
+                continue;
+            p = xasprintf("%s/%s/~dst", rootsbase, e->d_name);
+            if (dir_exists(p)) {
+                if (found)
+                    snprintf(found, n, "%s", p);
+                free(p);
+                closedir(d);
+                return true;
+            }
+            free(p);
+        }
+        closedir(d);
+    }
+    return false;
+}
+
+static void
+check_dependencies(const char *project, const char *rootsbase)
+{
+    dependency **deps, **d;
+    size_t n = 0;
+
+    deps = deps_for_project(project);
+    if (!deps)
+        return;
+    for (d = deps; *d; d++) {
+        dependency *dd = *d;
+        char found[1024];
+        bool ok;
+
+        if (dd->ver) {
+            char *p = xasprintf("%s/%s-%s.roots", rootsbase, dd->dep, dd->ver);
+            ok = dir_exists(p);
+            if (ok) {
+                char *q = xasprintf("%s/~dst", p);
+                ok = dir_exists(q);
+                snprintf(found, sizeof found, "%s", q);
+                free(q);
+            }
+            free(p);
+            printf("xbs: %s: check dependency %s version %s\n",
+                   project, dd->dep, dd->ver);
+        } else {
+            ok = dep_root_built(rootsbase, dd->dep, NULL,
+                                found, sizeof found);
+            printf("xbs: %s: check dependency %s (any version)\n",
+                   project, dd->dep);
+        }
+
+        if (!ok)
+            die("%s: dependency %s%s%s not built under %s\n"
+                "      run 'xbs buildit -rootsDirectory %s <path-to-%s-src>' first",
+                project, dd->dep, dd->ver ? "-" : "",
+                dd->ver ? dd->ver : "", rootsbase, rootsbase, dd->dep);
+        printf("xbs: %s:   dependency ok: %s\n", project, found);
+        n++;
+    }
+    printf("xbs: %s: %zu dependenc%s present\n", project, n,
+           n == 1 ? "y" : "ies");
+    free(deps);
 }
 
 /* ---- command execution (verbose + dry-run aware) ---- */
@@ -776,6 +964,9 @@ cmd_buildit(int argc, char **argv)
     set_env(&o, &c);
     al = find_alias(c.project);
 
+    if (!o.ignoredeps)
+        check_dependencies(c.project, rootsbase);
+
     phase_installsrc(&o, &c);
     if (o.clean)
         phase_clean(&o, &c, al);
@@ -800,5 +991,6 @@ cmd_buildit(int argc, char **argv)
     sl_free(&o.archs);
     sl_free(&o.envs);
     free_aliases();
+    free_deps();
     return 0;
 }
