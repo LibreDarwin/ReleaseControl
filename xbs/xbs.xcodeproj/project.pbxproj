@@ -1,0 +1,211 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1A0000000000000000000001 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 2A0000000000000000000001 /* main.c */; };
+		1A0000000000000000000002 /* buildit.c in Sources */ = {isa = PBXBuildFile; fileRef = 2A0000000000000000000002 /* buildit.c */; };
+		1A0000000000000000000003 /* submitproject.c in Sources */ = {isa = PBXBuildFile; fileRef = 2A0000000000000000000003 /* submitproject.c */; };
+		1A0000000000000000000004 /* common.c in Sources */ = {isa = PBXBuildFile; fileRef = 2A0000000000000000000004 /* common.c */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		2A0000000000000000000001 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		2A0000000000000000000002 /* buildit.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = buildit.c; sourceTree = "<group>"; };
+		2A0000000000000000000003 /* submitproject.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = submitproject.c; sourceTree = "<group>"; };
+		2A0000000000000000000004 /* common.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = common.c; sourceTree = "<group>"; };
+		2A0000000000000000000005 /* xbs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xbs.h; sourceTree = "<group>"; };
+		2A0000000000000000000006 /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile; sourceTree = "<group>"; };
+		2A0000000000000000000007 /* xbs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xbs; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4A0000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3A0000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				3A0000000000000000000002 /* src */,
+				2A0000000000000000000006 /* Makefile */,
+				3A0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3A0000000000000000000002 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				2A0000000000000000000001 /* main.c */,
+				2A0000000000000000000002 /* buildit.c */,
+				2A0000000000000000000003 /* submitproject.c */,
+				2A0000000000000000000004 /* common.c */,
+				2A0000000000000000000005 /* xbs.h */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		3A0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2A0000000000000000000007 /* xbs */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5A0000000000000000000001 /* xbs */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7A0000000000000000000002 /* Build configuration list for PBXNativeTarget "xbs" */;
+			buildPhases = (
+				4A0000000000000000000001 /* Sources */,
+				4A0000000000000000000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = xbs;
+			productName = xbs;
+			productReference = 2A0000000000000000000007 /* xbs */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6A0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					5A0000000000000000000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 7A0000000000000000000001 /* Build configuration list for PBXProject "xbs" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3A0000000000000000000001;
+			productRefGroup = 3A0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5A0000000000000000000001 /* xbs */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A0000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A0000000000000000000001 /* main.c in Sources */,
+				1A0000000000000000000002 /* buildit.c in Sources */,
+				1A0000000000000000000003 /* submitproject.c in Sources */,
+				1A0000000000000000000004 /* common.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		8A0000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = "$(inherited) -Wall -Wextra -Wno-unused-parameter";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		8A0000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = s;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				OTHER_CFLAGS = "$(inherited) -Wall -Wextra -Wno-unused-parameter";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		8A0000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				EXECUTABLE_PREFIX = "";
+				PRODUCT_NAME = xbs;
+			};
+			name = Debug;
+		};
+		8A0000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				EXECUTABLE_PREFIX = "";
+				PRODUCT_NAME = xbs;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7A0000000000000000000001 /* Build configuration list for PBXProject "xbs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A0000000000000000000001 /* Debug */,
+				8A0000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7A0000000000000000000002 /* Build configuration list for PBXNativeTarget "xbs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A0000000000000000000003 /* Debug */,
+				8A0000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6A0000000000000000000001 /* Project object */;
+}
