@@ -1,5 +1,9 @@
 # xbs - open-source Apple Build & Integration (B&I) tool
 #
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 LibreDarwin.  All rights reserved.
+# See the LICENSE file for the full BSD 3-Clause license text.
+#
 # Portable makefile: works with both GNU make (gmake, default on macOS)
 # and BSD make (bmake, FreeBSD/NetBSD/DragonFly).  Suffix rules (.c.o)
 # are understood by both; there are no GNU-only constructs here.
@@ -13,6 +17,7 @@ CFLAGS  += -O2 -g -Wall -Wextra -Wno-unused-parameter
 PREFIX  ?= /usr/local
 DESTDIR ?=
 MANDIR  ?= $(PREFIX)/share/man
+CONFDIR ?= $(PREFIX)/share/xbs/conf
 
 SRCS    := src/main.c src/buildit.c src/submitproject.c src/common.c
 OBJS    := $(SRCS:.c=.o)
@@ -32,6 +37,8 @@ $(OBJS): src/xbs.h
 install: $(BIN)
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -m 0755 $(BIN) $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	install -d $(DESTDIR)$(CONFDIR)
+	install -m 0644 conf/projects.conf $(DESTDIR)$(CONFDIR)/projects.conf
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)

@@ -6,6 +6,33 @@
  * libkmod) Darwin projects, using the RC_* environment contract:
  *
  *   installsrc -> clean -> install -> verify -> sum [-> merge] [-> archive]
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 LibreDarwin
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define _DARWIN_C_SOURCE 1
@@ -21,6 +48,7 @@
 typedef struct {
     strlist archs;
     strlist envs;             /* -env KEY=VALUE passthrough */
+    const char *conf;         /* -conf FILE (project database) */
     const char *project;      /* -project / -buildAlias */
     const char *release;      /* -release train */
     const char *version;      /* -version */
@@ -64,8 +92,11 @@ usage_buildit(FILE *f)
 "  -arch NAME            architecture to build (repeatable; default: host)\n"
 "  -project NAME         project / build alias name (default: basename of srcroot)\n"
 "  -buildAlias NAME      xnu-style alias name (alias for -project)\n"
+"  -conf FILE            project database (aliases/trains); default: $XBS_CONF,\n"
+"                        else <bindir>/conf or <bindir>/../share/xbs/conf\n"
 "  -release TRAIN        release train (RC_RELEASE)\n"
-"  -version VERSION      explicit source version (default: parsed from path)\n"
+"  -version VERSION      explicit source version (default: parsed from the path,\n"
+"                        then from git describe when the path has no version)\n"
 "  -rootsDirectory DIR   write roots under DIR (default: $TMPDIR)\n"
 "  -sdk SDKROOT          override SDK root\n"
 "  -othercflags FLAGS    extra compile flags (RC_NONARCH_CFLAGS)\n"
@@ -96,6 +127,7 @@ parse_args(int argc, char **argv, opts *o)
     o->project = o->release = o->version = o->rootsdir = NULL;
     o->merge = o->sdk = o->othercflags = o->target = o->rc_os = NULL;
     o->config = NULL;
+    o->conf = NULL;
     o->srcroot = NULL;
     o->clean = true;
     o->noinstallsrc = o->nosum = o->noverify = false;
@@ -129,6 +161,8 @@ parse_args(int argc, char **argv, opts *o)
             sl_add(&o->envs, need_value(argc, argv, &i, a));
         else if (!strcmp(a, "-configuration"))
             o->config = need_value(argc, argv, &i, a);
+        else if (!strcmp(a, "-conf"))
+            o->conf = need_value(argc, argv, &i, a);
         else if (!strcmp(a, "-merge"))
             o->merge = need_value(argc, argv, &i, a);
         else if (!strcmp(a, "-update"))
@@ -168,37 +202,158 @@ parse_args(int argc, char **argv, opts *o)
     g_verbose = o->verbose;
 }
 
-/* ---- Xcode-project aliases (libkdd/libsyscall/libkmod route to xcodebuild) ---- */
+/* ---- Xcode-project aliases from the project database (conf/) ---- */
 
 typedef struct {
-    const char *prefix;
-    const char *subdir;
-    const char *config;
-    const char *target;
+    char *prefix;
+    char *subdir;
+    char *config;
+    char *target;
 } xcode_alias;
 
-static const xcode_alias aliases[] = {
-    { "libkdd_host",            "libkdd",      "ReleaseHost", "kdd.framework" },
-    { "libkdd_tests",           "libkdd",      NULL,           "tests" },
-    { "libkdd",                 "libkdd",      NULL,           "Default" },
-    { "libsyscall_headers_Sim", "libsyscall",  NULL,           "Libsyscall_headers_Sim" },
-    { "libsyscall_driverkit",   "libsyscall",  NULL,           "Libsyscall_driverkit" },
-    { "libsyscall",             "libsyscall",  NULL,           "Libsyscall" },
-    { "libkmod",                "libkern/kmod", NULL,          NULL },
-    { NULL, NULL, NULL, NULL }
-};
+static xcode_alias *g_aliases = NULL;
+static size_t g_naliases = 0, g_capaliases = 0;
+
+static void
+alias_add(const char *prefix, const char *subdir,
+          const char *config, const char *target)
+{
+    xcode_alias *a;
+    if (g_naliases == g_capaliases) {
+        g_capaliases = g_capaliases ? g_capaliases * 2 : 8;
+        g_aliases = realloc(g_aliases, g_capaliases * sizeof(xcode_alias));
+        if (!g_aliases)
+            die("out of memory");
+    }
+    a = &g_aliases[g_naliases++];
+    memset(a, 0, sizeof *a);
+    a->prefix = xstrdup(prefix);
+    a->subdir = xstrdup(subdir);
+    a->config = config ? xstrdup(config) : NULL;
+    a->target = target ? xstrdup(target) : NULL;
+}
+
+static void
+parse_conf_line(char *line)
+{
+    char *tokens[16];
+    int nt = 0, j;
+    char *q = line;
+
+    while (nt < 16) {
+        while (*q == ' ' || *q == '\t')
+            q++;
+        if (!*q)
+            break;
+        tokens[nt++] = q;
+        while (*q && *q != ' ' && *q != '\t')
+            q++;
+        if (*q)
+            *q++ = '\0';
+    }
+    if (!nt || !strcmp(tokens[0], "#"))
+        return;
+
+    if (!strcmp(tokens[0], "alias")) {
+        const char *config = NULL, *target = NULL;
+        if (nt < 3) {
+            warn("conf: malformed alias directive at '%s'", line);
+            return;
+        }
+        for (j = 3; j + 1 < nt; j++) {
+            if (!strcmp(tokens[j], "configuration"))
+                config = tokens[++j];
+            else if (!strcmp(tokens[j], "target"))
+                target = tokens[++j];
+            else
+                warn("conf: unknown alias keyword '%s'", tokens[j]);
+        }
+        alias_add(tokens[1], tokens[2], config, target);
+    } else {
+        warn("conf: ignoring unknown directive '%s'", tokens[0]);
+    }
+}
+
+/* Find the project database: -conf, then $XBS_CONF, then relative to the
+ * executable (dev trees: <bindir>/conf; installed: <bindir>/../share/xbs/conf). */
+static char *
+conf_path(const opts *o)
+{
+    char *dir, *p, *up;
+
+    if (o->conf && *o->conf)
+        return xstrdup(o->conf);
+    if (getenv("XBS_CONF") && *getenv("XBS_CONF"))
+        return xstrdup(getenv("XBS_CONF"));
+    if (!g_argv0 || !*g_argv0)
+        return NULL;
+    dir = path_dirname(g_argv0);
+    p = path_join(dir, "conf/projects.conf");
+    if (file_exists(p)) {
+        free(dir);
+        return p;
+    }
+    free(p);
+    up = path_join(dir, "../share/xbs/conf/projects.conf");
+    free(dir);
+    if (file_exists(up))
+        return up;
+    free(up);
+    return NULL;
+}
+
+static void
+load_conf(const opts *o)
+{
+    char *path = conf_path(o), *data, *line, *next;
+
+    if (!path) {
+        warn("no project database found (set XBS_CONF); using make-only builds");
+        return;
+    }
+    data = slurp(path);
+    if (!data) {
+        warn("project database %s unreadable", path);
+        free(path);
+        return;
+    }
+    line = data;
+    while ((next = strchr(line, '\n')) != NULL) {
+        *next = '\0';
+        parse_conf_line(trim(line));
+        line = next + 1;
+    }
+    parse_conf_line(trim(line));
+    free(data);
+    printf("xbs: conf: %zu alias(es) from %s\n", g_naliases, path);
+    free(path);
+}
+
+static void
+free_aliases(void)
+{
+    size_t i;
+    for (i = 0; i < g_naliases; i++) {
+        free(g_aliases[i].prefix);
+        free(g_aliases[i].subdir);
+        free(g_aliases[i].config);
+        free(g_aliases[i].target);
+    }
+    free(g_aliases);
+    g_aliases = NULL;
+    g_naliases = g_capaliases = 0;
+}
 
 static const xcode_alias *
 find_alias(const char *project)
 {
-    const xcode_alias *a;
-    size_t best = 0;
     const xcode_alias *hit = NULL;
-    for (a = aliases; a->prefix; a++) {
-        size_t n = strlen(a->prefix);
-        if (!strncmp(project, a->prefix, n) && n >= best) {
+    size_t i, best = 0;
+    for (i = 0; i < g_naliases; i++) {
+        size_t n = strlen(g_aliases[i].prefix);
+        if (strncmp(project, g_aliases[i].prefix, n) == 0 && n >= best) {
             best = n;
-            hit = a;
+            hit = &g_aliases[i];
         }
     }
     return hit;
@@ -489,8 +644,9 @@ phase_verify_sum(const opts *o, const buildctx *c)
                         printf("xbs:   diff: %s\n", fresh->v[i]);
                 }
         }
-        printf("xbs: %s: verify: %s (%zu files, %zu differing)\n",
-               c->project, same ? "IDENTICAL" : "DIFFERS", fresh->n, ndiff);
+        printf("xbs: %s: verify: %s (%zu %s, %zu differing)\n",
+               c->project, same ? "IDENTICAL" : "DIFFERS", fresh->n,
+               fresh->n == 1 ? "file" : "files", ndiff);
     } else {
         printf("xbs: %s: verify: no previous sum, recording baseline\n",
                c->project);
@@ -559,11 +715,19 @@ cmd_buildit(int argc, char **argv)
     const char *rootsbase;
 
     parse_args(argc, argv, &o);
+    load_conf(&o);
 
     project_from_path(o.srcroot, projbuf, sizeof projbuf);
     if (o.project)
         snprintf(projbuf, sizeof projbuf, "%s", o.project);
     version_from_path(o.srcroot, verbuf, sizeof verbuf);
+    if (!o.version && !strcmp(verbuf, "1")) {
+        char gbuf[256];
+        if (git_source_version(o.srcroot, gbuf, sizeof gbuf)) {
+            snprintf(verbuf, sizeof verbuf, "%s", gbuf);
+            printf("xbs: version from git: %s\n", verbuf);
+        }
+    }
     if (o.version)
         snprintf(verbuf, sizeof verbuf, "%s", o.version);
 
@@ -635,5 +799,6 @@ cmd_buildit(int argc, char **argv)
     free(tmp);
     sl_free(&o.archs);
     sl_free(&o.envs);
+    free_aliases();
     return 0;
 }

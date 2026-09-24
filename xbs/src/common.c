@@ -1,5 +1,32 @@
 /*
  * common.c - shared helpers for the open-source xbs tool.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (c) 2026 LibreDarwin
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived from
+ *    this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <sys/types.h>
@@ -15,6 +42,8 @@
 #include <libgen.h>
 #include <pwd.h>
 #include <signal.h>
+#include <ctype.h>
+#include <fcntl.h>
 #include <sys/utsname.h>
 
 #include "xbs.h"
@@ -23,6 +52,7 @@
 bool g_verbose = false;
 bool g_dryrun = false;
 bool g_prune_junk = false;
+const char *g_argv0 = NULL;    /* real executable path, set by main() */
 
 /* Entries never worth shadow-copying: SCM metadata, Finder cruft. */
 static bool
@@ -101,6 +131,18 @@ path_join(const char *a, const char *b)
     if (a[la - 1] == '/')
         return xasprintf("%s%s", a, b);
     return xasprintf("%s/%s", a, b);
+}
+
+/* Parent directory of p, as a malloc'd string (".", "/", "a/b" style). */
+char *
+path_dirname(const char *p)
+{
+    const char *s = strrchr(p, '/');
+    if (!s)
+        return xstrdup(".");
+    if (s == p)
+        return xstrdup("/");
+    return xasprintf("%.*s", (int)(s - p), p);
 }
 
 char *
@@ -366,6 +408,123 @@ run_cmd(char *const argv[])
     if (st != 0)
         die("command failed (status %d): %s", st, argv[0]);
     return 0;
+}
+
+/* Run argv, capturing stdout into buf (NUL-terminated, trailing newline
+ * stripped).  Returns the child exit status, or 1 on failure. */
+static int
+run_capture_ex(char *const argv[], char *buf, size_t n, bool quiet_err)
+{
+    int fds[2];
+    pid_t pid;
+    int status;
+    ssize_t got;
+    size_t total = 0;
+
+    if (n == 0)
+        return 1;
+    if (pipe(fds) != 0)
+        die("pipe: %s", strerror(errno));
+    fflush(NULL);
+    pid = fork();
+    if (pid < 0)
+        die("fork: %s", strerror(errno));
+    if (pid == 0) {
+        close(fds[0]);
+        if (dup2(fds[1], 1) != 1)
+            _exit(127);
+        close(fds[1]);
+        if (quiet_err) {
+            int devnull = open("/dev/null", O_WRONLY);
+            if (devnull >= 0) {
+                dup2(devnull, 2);
+                close(devnull);
+            }
+        }
+        execvp(argv[0], argv);
+        dprintf(2, "xbs: exec %s: %s\n", argv[0], strerror(errno));
+        _exit(127);
+    }
+    close(fds[1]);
+    while (total + 1 < n &&
+           (got = read(fds[0], buf + total, n - total - 1)) > 0)
+        total += (size_t)got;
+    close(fds[0]);
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR)
+            die("waitpid: %s", strerror(errno));
+    }
+    buf[total] = '\0';
+    if (total && buf[total - 1] == '\n')
+        buf[total - 1] = '\0';
+    if (WIFSIGNALED(status))
+        return 1;
+    return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+}
+
+int
+run_capture(char *const argv[], char *buf, size_t n)
+{
+    return run_capture_ex(argv, buf, n, false);
+}
+
+int
+run_capture_quiet(char *const argv[], char *buf, size_t n)
+{
+    return run_capture_ex(argv, buf, n, true);
+}
+
+/* git describe --tags --long output -> Apple-style source version.
+ *   "xnu-7195.141.6-42-gabc1234" -> "7195.141.6.42"
+ *   "xnu-7195.141.6-0-gabc1234"  -> "7195.141.6"
+ *   "v2.0.0-0-gabc1234"          -> "2.0.0"
+ * Returns 1 and fills buf on success, 0 if dir is not a git checkout. */
+int
+git_source_version(const char *dir, char *buf, size_t n)
+{
+    char *av[] = { (char *)"git", (char *)"-C", (char *)dir,
+                   (char *)"describe", (char *)"--tags", (char *)"--long",
+                   (char *)"--always", NULL };
+    char out[512];
+    char *tagend, *countstart, *v;
+    long commits = 0;
+    const char *p;
+    int ok;
+
+    if (run_capture_quiet(av, out, sizeof out) != 0 || !out[0])
+        return 0;
+
+    /* Trim the trailing "-g<sha>"; take commits between tag and sha. */
+    tagend = strstr(out, "-g");
+    if (tagend) {
+        *tagend = '\0';                       /* "...-<count>" remains */
+        countstart = tagend;
+        while (countstart > out && countstart[-1] != '-')
+            countstart--;
+        if (countstart > out) {
+            commits = atol(countstart);
+            countstart--;
+            *countstart = '\0';               /* drop "-<count>" */
+        }
+    }
+
+    /* Drop any leading non-numeric prefix ("xnu-", "v") when digits follow. */
+    v = out;
+    while (*v && !isdigit((unsigned char)*v))
+        v++;
+    if (!*v)
+        v = out;
+
+    ok = *v != '\0';
+    for (p = v; *p; p++)
+        if (!(isdigit((unsigned char)*p) || *p == '.'))
+            ok = 0;
+
+    if (ok)
+        snprintf(buf, n, commits > 0 ? "%s.%ld" : "%s", v, commits);
+    else
+        snprintf(buf, n, "%s", out);
+    return 1;
 }
 
 /* Copy one file/any-plain object dir tree. */

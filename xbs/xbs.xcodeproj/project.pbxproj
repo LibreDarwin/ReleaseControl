@@ -21,6 +21,8 @@
 		2A0000000000000000000005 /* xbs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xbs.h; sourceTree = "<group>"; };
 		2A0000000000000000000006 /* Makefile */ = {isa = PBXFileReference; lastKnownFileType = text; path = Makefile; sourceTree = "<group>"; };
 		2A0000000000000000000007 /* xbs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xbs; sourceTree = BUILT_PRODUCTS_DIR; };
+		2A0000000000000000000008 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		2A0000000000000000000009 /* projects.conf */ = {isa = PBXFileReference; lastKnownFileType = text; path = projects.conf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,9 +40,19 @@
 			isa = PBXGroup;
 			children = (
 				3A0000000000000000000002 /* src */,
+				3A0000000000000000000004 /* conf */,
 				2A0000000000000000000006 /* Makefile */,
+				2A0000000000000000000008 /* LICENSE */,
 				3A0000000000000000000003 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		3A0000000000000000000004 /* conf */ = {
+			isa = PBXGroup;
+			children = (
+				2A0000000000000000000009 /* projects.conf */,
+			);
+			path = conf;
 			sourceTree = "<group>";
 		};
 		3A0000000000000000000002 /* src */ = {
