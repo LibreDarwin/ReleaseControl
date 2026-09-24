@@ -23,6 +23,8 @@
 		2A0000000000000000000007 /* xbs */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = xbs; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A0000000000000000000008 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		2A0000000000000000000009 /* projects.conf */ = {isa = PBXFileReference; lastKnownFileType = text; path = projects.conf; sourceTree = "<group>"; };
+		2A000000000000000000000A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		2A000000000000000000000B /* xbs.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = xbs.1; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +45,8 @@
 				3A0000000000000000000004 /* conf */,
 				2A0000000000000000000006 /* Makefile */,
 				2A0000000000000000000008 /* LICENSE */,
+				2A000000000000000000000A /* README.md */,
+				2A000000000000000000000B /* xbs.1 */,
 				3A0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";

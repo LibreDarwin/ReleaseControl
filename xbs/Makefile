@@ -18,6 +18,7 @@ PREFIX  ?= /usr/local
 DESTDIR ?=
 MANDIR  ?= $(PREFIX)/share/man
 CONFDIR ?= $(PREFIX)/share/xbs/conf
+DOCDIR  ?= $(PREFIX)/share/doc/xbs
 
 SRCS    := src/main.c src/buildit.c src/submitproject.c src/common.c
 OBJS    := $(SRCS:.c=.o)
@@ -39,9 +40,16 @@ install: $(BIN)
 	install -m 0755 $(BIN) $(DESTDIR)$(PREFIX)/bin/$(BIN)
 	install -d $(DESTDIR)$(CONFDIR)
 	install -m 0644 conf/projects.conf $(DESTDIR)$(CONFDIR)/projects.conf
+	install -d $(DESTDIR)$(MANDIR)/man1
+	install -m 0644 xbs.1 $(DESTDIR)$(MANDIR)/man1/xbs.1
+	install -d $(DESTDIR)$(DOCDIR)
+	install -m 0644 README.md LICENSE $(DESTDIR)$(DOCDIR)/
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	rm -f $(DESTDIR)$(MANDIR)/man1/xbs.1
+	rm -rf $(DESTDIR)$(CONFDIR)
+	rm -rf $(DESTDIR)$(DOCDIR)
 
 clean:
 	rm -f $(BIN) $(OBJS)

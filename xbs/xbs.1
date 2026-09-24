@@ -1,0 +1,218 @@
+.TH XBS 1 "September 2026" "xbs 0.3.0" "User Commands"
+.SH NAME
+xbs \- open-source Apple Build & Integration (B&I) tool
+.SH SYNOPSIS
+.B xbs
+.B buildit
+.RI [ options ]
+.IR srcroot
+.br
+.B xbs
+.B submitproject
+.RI [ options ]
+.IR srcroot
+.br
+.B xbs
+.B vers
+.RI [ path ]
+.br
+.B xbs
+.B version
+.SH DESCRIPTION
+.B xbs
+is a reimplementation of Apple's build & integrate tools.
+It builds Darwin projects the Apple B&I way: it establishes the
+.B RC_*
+build environment, shadow-builds a project from a pristine source copy,
+records a reproducible sum of what was installed, verifies rebuilds
+against that sum, and optionally merges or archives the built root.
+Project-specific knowledge (Xcode aliases, dependencies, trains) lives in a
+project database under
+.IR conf ,
+not in code.
+.SH COMMANDS
+.SS buildit
+Build a Darwin project in the Apple B&I fashion.  Syntax:
+.IP
+.B xbs buildit
+.RI [ options ]
+.I srcroot
+.PP
+The pipeline is:
+.IP
+installsrc \(-> clean \(-> install \(-> verify \(-> sum [ \(-> merge ] [ \(-> archive ]
+.PP
+.TP
+.BI \-arch\  name
+Build for architecture
+.I name
+(repeatable; default: host architecture).
+.TP
+.BI \-project\  name ,   \-buildAlias\  name
+Project name / xnu-style build alias (default: basename of srcroot).
+.TP
+.BI \-conf\  file
+Project database.  Default:
+.BR $XBS_CONF ,
+.BR <bindir>/conf/projects.conf ,
+or
+.BR <bindir>/../share/xbs/conf/projects.conf .
+.TP
+.BI \-release\  train
+Release train (name; sets
+.BR RC_RELEASE ).
+.TP
+.BI \-version\  ver
+Explicit source version (default: parsed from the path, else from
+.B git describe
+when the path carries no version).
+.TP
+.BI \-rootsDirectory\  dir
+Place roots under
+.I dir
+(default:
+.BR $XBS_ROOTS_DIR ,
+else
+.BR $TMPDIR ,
+else
+.BR /tmp ).
+.TP
+.BI \-sdk\  path
+Override the SDK root.
+.TP
+.BI \-othercflags\  flags
+Extra compile flags (sets
+.BR RC_NONARCH_CFLAGS ;
+falls back to
+.BR XBS_CFLAGS ).
+.TP
+.BI \-target\  name
+Override the make target (default:
+.BR install ).
+.TP
+.BI \-os\  name
+.IR RC_OS
+override (default:
+.BR MacOSX ).
+.TP
+.BI \-configuration\  name
+Sets
+.B RC_TARGET_CONFIG
+(default:
+.BR release ).
+.TP
+.BI \-env\  key=value
+Pass a variable to the build environment (repeatable; overrides the RC_*
+contract).
+.TP
+.BI \-parallel\  n
+.IR make\ \-j
+degree (default: CPU count).
+.TP
+.BI \-merge\  dst
+Copy the built root on top of
+.I dst
+after install.
+.TP
+.B \-archive
+Leave
+.IR <proj>-<ver>~dst.tgz
+of the built root beside the roots.
+.TP
+.B \-ignoreDependencies
+Do not gate on missing dependency roots.
+.TP
+.B \-noinstallsrc
+Build in place; do not shadow-copy sources.
+.TP
+.B \-noclean ,   \-nosum ,   \-noverify
+Disable a pipeline phase.
+.TP
+.B \-verbose
+Echo every command that runs.
+.TP
+.B \-n ,   \-dryrun
+Dry run: print what would run, change nothing.
+.TP
+.B \-h
+Show help.
+.PP
+Builds run with the RC_* environment contract: RC_XBS=YES,
+RC_ProjectName, RC_ProjectSourceVersion, RC_ProjectNameAndSourceVersion,
+RC_ProjectSourceSubversion=0, RC_BUILDING_INTERNAL=0, RC_OS, RC_RELEASE,
+RC_TARGET_CONFIG, RC_CFLAGS, RC_NONARCH_CFLAGS, SRCROOT, OBJROOT, SYMROOT,
+DSTROOT, SDKROOT, MAKEFLAGS=-jN, and INSTALL_DIR=/.
+.SS submitproject
+Package a project's sources as the B&I server would: stage a pristine,
+junk-pruned copy under
+.BI <output>/Software/<train>/Sources/<proj>-<ver>
+and write a
+.B .sum
+manifest of the submission.
+.TP
+.BI \-project\  name
+Project name (default: basename of srcroot).
+.TP
+.BI \-version\  ver
+Source version (default: parsed from the path).
+.TP
+.BI \-release\  train
+Train subdirectory (default:
+.BR Current ).
+.TP
+.BI \-o\  dir
+Output base (default:
+.BR Submitted ).
+.TP
+.B \-verbose ,   \-n
+See
+.BR buildit .
+.SS vers
+Derive the Apple-style source version of
+.IR path
+(default:
+.BR . ):
+a trailing
+.BR \-<digits>.<digits>... 
+suffix if present, else
+.BR git\ \-C\ dir\ describe\ --tags\ --long\ --always
+(leading non-numeric prefix stripped, commit count appended as
+.BR .N ),
+else
+.BR 1 .
+.SS version
+Print the tool version.
+.SH FILES
+.TP
+.B conf/projects.conf
+Project database: Xcode aliases, dependencies, trains.
+.SH ENVIRONMENT
+.TP
+.B XBS_CONF
+Path to the project database (overrides the default search).
+.TP
+.B XBS_ROOTS_DIR
+Roots base when
+.B \-rootsDirectory
+is not given.
+.TP
+.B XBS_CFLAGS
+Fallback for
+.BR RC_NONARCH_CFLAGS .
+.TP
+.B TMPDIR
+Roots base when neither
+.B \-rootsDirectory
+nor
+.B XBS_ROOTS_DIR
+is set.
+.SH EXIT STATUS
+Zero on success.  Non-zero when a build, verification, or dependency check
+fails.
+.SH LICENSE
+BSD 3-Clause.  Copyright (c) 2026 LibreDarwin.
+.SH SEE ALSO
+.BR make (1),
+.BR xcodebuild (1),
+.BR git (1),
+.BR tar (1)
