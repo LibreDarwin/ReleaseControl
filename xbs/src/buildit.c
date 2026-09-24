@@ -67,6 +67,7 @@ typedef struct {
     bool noverify;
     bool ignoredeps;
     bool archive;
+    bool image;
     bool verbose;
     int parallel;
 } opts;
@@ -111,6 +112,8 @@ usage_buildit(FILE *f)
 "  -merge DST            copy built root on top of DST after install\n"
 "  -update TRAIN         accepted for compatibility (no-op)\n"
 "  -archive              also leave <proj>-<ver>~dst.tgz of the built root\n"
+"  -image                also leave <proj>-<ver>.bom and <proj>-<ver>.dmg of\n"
+"                        the built root (mkbom + hdiutil; macOS only)\n"
 "  -noinstallsrc         build in place, do not shadow-copy sources\n"
 "  -noclean              do not clean before building\n"
 "  -ignoreDependencies   do not gate on missing dependency roots\n"
@@ -136,7 +139,8 @@ parse_args(int argc, char **argv, opts *o)
     o->clean = true;
     o->noinstallsrc = o->nosum = o->noverify = false;
     o->ignoredeps = false;
-    o->archive = o->verbose = false;
+    o->archive = o->image = false;
+    o->verbose = false;
     o->parallel = 0;
 
     for (i = 1; i < argc; i++) {
@@ -174,6 +178,8 @@ parse_args(int argc, char **argv, opts *o)
             (void)need_value(argc, argv, &i, a);      /* compat no-op */
         else if (!strcmp(a, "-archive"))
             o->archive = true;
+        else if (!strcmp(a, "-image"))
+            o->image = true;
         else if (!strcmp(a, "-dsymsInDstroot") || !strcmp(a, "-dsymsInDstRoot"))
             (void)0;                                   /* accepted, default keep */
         else if (!strcmp(a, "-noinstallsrc"))
@@ -890,6 +896,58 @@ phase_archive(const opts *o, const buildctx *c)
     free(tgz);
 }
 
+static bool
+have_cmd(const char *name)
+{
+    char probe[256];
+    char *av[] = { (char *)"which", (char *)name, NULL };
+    return run_capture_quiet(av, probe, sizeof probe) == 0 && probe[0];
+}
+
+static void
+phase_image(const opts *o, const buildctx *c)
+{
+    strlist args;
+    char *name = xasprintf("%s-%s", c->project, c->version);
+    char *bomfile = xasprintf("%s/%s.bom", c->rootdir, name);
+    char *dmgfile = xasprintf("%s/%s.dmg", c->rootdir, name);
+    (void)o;
+
+    /* Bill of Materials: Apple's canonical record of what a build produced.
+     * Mirrors the .bom that ReleaseControl's buildit stored beside .sum. */
+    if (!have_cmd("mkbom"))
+        die("imaging requires mkbom (macOS); run without -image");
+    sl_init(&args);
+    sl_add(&args, "mkbom");
+    sl_add(&args, c->dstroot);
+    sl_add(&args, bomfile);
+    xrun(c->rootdir, &args);
+    sl_free(&args);
+    printf("xbs: %s: bom %s\n", c->project, bomfile);
+
+    /* Read-only compressed disk image of the built root. */
+    if (!have_cmd("hdiutil"))
+        die("imaging requires hdiutil (macOS); run without -image");
+    sl_init(&args);
+    sl_add(&args, "hdiutil");
+    sl_add(&args, "create");
+    sl_add(&args, "-srcfolder");
+    sl_add(&args, c->dstroot);
+    sl_add(&args, "-ov");
+    sl_add(&args, "-format");
+    sl_add(&args, "UDZO");
+    sl_add(&args, "-volname");
+    sl_add(&args, name);
+    sl_add(&args, dmgfile);
+    xrun(c->rootdir, &args);
+    sl_free(&args);
+    printf("xbs: %s: image %s\n", c->project, dmgfile);
+
+    free(name);
+    free(bomfile);
+    free(dmgfile);
+}
+
 int
 cmd_buildit(int argc, char **argv)
 {
@@ -979,6 +1037,8 @@ cmd_buildit(int argc, char **argv)
         phase_merge(&o, &c);
     if (o.archive)
         phase_archive(&o, &c);
+    if (o.image)
+        phase_image(&o, &c);
 
     printf("xbs: %s: BUILD SUCCEEDED\n", c.project);
     printf("xbs:   DSTROOT=%s\n", c.dstroot);
