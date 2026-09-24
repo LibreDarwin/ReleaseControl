@@ -1,3 +1,0 @@
-[submodule "vendor/BomCmds"]
-	path = vendor/BomCmds
-	url = https://github.com/LibreDarwin/BomCmds.git
