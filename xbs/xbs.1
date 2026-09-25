@@ -119,6 +119,33 @@ Leave
 .IR <proj>-<ver>~dst.tgz
 of the built root beside the roots.
 .TP
+.B \-image
+Additionally leave
+.IR <proj>-<ver>.bom
+and a read-only compressed
+.IR <proj>-<ver>.dmg
+of the built root (requires
+.BR mkbom ,
+.BR hdiutil ;
+macOS only).
+.TP
+.BI \-lang\  name
+With
+.BR \-image ,
+keep only the named language packs in the
+.IR .bom :
+every
+.I name .lproj
+subtree other than the requested ones is dropped.  Repeatable.  Apple's
+.IR /usr/bin/mkbom
+has no
+.B \-l
+flag, so this needs a LibreDarwin
+.BR mkbom ;
+see
+.B XBS_MKBOM
+below.
+.TP
 .B \-ignoreDependencies
 Do not gate on missing dependency roots.
 .TP
@@ -206,6 +233,23 @@ Roots base when neither
 nor
 .B XBS_ROOTS_DIR
 is set.
+.TP
+.B XBS_MKBOM
+Path to the
+.BR mkbom (1)
+used by
+.B \-image .
+This is how a LibreDarwin
+.BR mkbom (1)
+with
+.B \-l
+support is selected for
+.BR \-lang ;
+otherwise the first
+.BR mkbom
+on
+.B PATH
+is used.
 .SH EXIT STATUS
 Zero on success.  Non-zero when a build, verification, or dependency check
 fails.

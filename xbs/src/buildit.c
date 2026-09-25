@@ -49,6 +49,7 @@
 typedef struct {
     strlist archs;
     strlist envs;             /* -env KEY=VALUE passthrough */
+    strlist langs;            /* -lang NAME (keep only these .lproj) */
     const char *conf;         /* -conf FILE (project database) */
     const char *project;      /* -project / -buildAlias */
     const char *release;      /* -release train */
@@ -113,7 +114,10 @@ usage_buildit(FILE *f)
 "  -update TRAIN         accepted for compatibility (no-op)\n"
 "  -archive              also leave <proj>-<ver>~dst.tgz of the built root\n"
 "  -image                also leave <proj>-<ver>.bom and <proj>-<ver>.dmg of\n"
-"                        the built root (mkbom + hdiutil; macOS only)\n"
+            "                        the built root (mkbom + hdiutil; macOS only)\n"
+            "  -lang NAME            with -image: keep only the named\n"
+            "                        language packs in the .bom (mkbom -l,\n"
+            "                        repeatable; see XBS_MKBOM below)\n"
 "  -noinstallsrc         build in place, do not shadow-copy sources\n"
 "  -noclean              do not clean before building\n"
 "  -ignoreDependencies   do not gate on missing dependency roots\n"
@@ -131,6 +135,7 @@ parse_args(int argc, char **argv, opts *o)
 
     sl_init(&o->archs);
     sl_init(&o->envs);
+    sl_init(&o->langs);
     o->project = o->release = o->version = o->rootsdir = NULL;
     o->merge = o->sdk = o->othercflags = o->target = o->rc_os = NULL;
     o->config = NULL;
@@ -147,6 +152,8 @@ parse_args(int argc, char **argv, opts *o)
         const char *a = argv[i];
         if (!strcmp(a, "-arch"))
             sl_add(&o->archs, need_value(argc, argv, &i, a));
+        else if (!strcmp(a, "-lang"))
+            sl_add(&o->langs, need_value(argc, argv, &i, a));
         else if (!strcmp(a, "-project") || !strcmp(a, "-buildAlias") ||
                  !strcmp(a, "-buildProject"))   /* legacy naming */
             o->project = need_value(argc, argv, &i, a);
@@ -908,17 +915,26 @@ static void
 phase_image(const opts *o, const buildctx *c)
 {
     strlist args;
+    const char *mkbom = getenv("XBS_MKBOM");
     char *name = xasprintf("%s-%s", c->project, c->version);
     char *bomfile = xasprintf("%s/%s.bom", c->rootdir, name);
     char *dmgfile = xasprintf("%s/%s.dmg", c->rootdir, name);
-    (void)o;
+    size_t i;
 
     /* Bill of Materials: Apple's canonical record of what a build produced.
-     * Mirrors the .bom that ReleaseControl's buildit stored beside .sum. */
-    if (!have_cmd("mkbom"))
+     * Mirrors the .bom that ReleaseControl's buildit stored beside .sum.
+     * Apple's /usr/bin/mkbom has no -l, so -lang needs a LibreDarwin mkbom;
+     * point XBS_MKBOM at one when it is not already first in PATH. */
+    if (mkbom == NULL)
+        mkbom = "mkbom";
+    if (!have_cmd(mkbom))
         die("imaging requires mkbom (macOS); run without -image");
     sl_init(&args);
-    sl_add(&args, "mkbom");
+    sl_add(&args, mkbom);
+    for (i = 0; i < o->langs.n; i++) {
+        sl_add(&args, "-l");
+        sl_add(&args, o->langs.v[i]);
+    }
     sl_add(&args, c->dstroot);
     sl_add(&args, bomfile);
     xrun(c->rootdir, &args);

@@ -91,7 +91,16 @@ Roots are written under `<rootsbase>/<proj>-<ver>.roots/`, where
     ~dst/                   installed root
     <proj>-<ver>.sum        sorted manifest of ~dst (for verify)
     <proj>-<ver>~dst.tgz    archive, only with -archive
+    <proj>-<ver>.bom        bill of materials of ~dst, only with -image
+    <proj>-<ver>.dmg        compressed disk image of ~dst, only with -image
 ```
+
+With `-image -lang en`, the `.bom` keeps only the `en.lproj` subtrees of
+the built root (every other `<lang>.lproj` is dropped).  Language pruning is
+done by `mkbom -l`, a LibreDarwin extension; Apple's `/usr/bin/mkbom` has no
+`-l`, so point `XBS_MKBOM` at a LibreDarwin `mkbom` when it is not already
+on `PATH`.  Imaging itself (`.bom` + `.dmg`) requires `mkbom` and `hdiutil`
+and is macOS-only.
 
 ## Project database (`conf/projects.conf`)
 
