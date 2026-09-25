@@ -1,0 +1,23 @@
+# Release Control Support Makefiles
+
+These makefiles provide a framework for building Darwin Core OS
+projects under Release Control.  The original sources are placed in a
+subdirectory of the project and wrapped with a small makefile that
+drops the project into the framework.
+
+- `Common.make` provides the core functionality following the RC
+  makefile API.  It implements the `installsrc` and `clean` targets and
+  defines the dependencies between all of the standard targets,
+  including `build` and `install`.
+
+- `GNUSource.make` implements the `build` and `install` targets for
+  sources which use a GNU autoconf `configure` script to build.
+
+- `BSDCommon.make` implements the `build` and `install` targets for
+  Apple-style projects (tools, dylibs, and static libraries) presented
+  to Release Control as `ProductType`.
+
+This tree is a clean-room reimplementation of Apple's Release Control
+support makefiles and preserves their public interface (variable
+names, targets, and defaults) so that Darwin projects build
+unmodified.  Not affiliated with Apple.

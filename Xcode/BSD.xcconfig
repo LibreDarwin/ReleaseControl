@@ -1,0 +1,22 @@
+//
+// BSD.xcconfig - open-source Apple Release Control build settings
+//
+// Clean-room reimplementation of the interface provided by Apple's
+// Core OS Makefiles Xcode build configuration.  Preserves the same
+// settings so that Darwin Core OS projects build unmodified.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2026 LibreDarwin.  All rights reserved.
+// See the LICENSE file for the full BSD 3-Clause license text.
+//
+ARCHS = $(ARCHS_STANDARD_32_64_BIT);
+CODE_SIGN_IDENTITY = -;
+CURRENT_PROJECT_VERSION = $(RC_ProjectSourceVersion);
+DEAD_CODE_STRIPPING = YES;
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym;
+PREBINDING = NO;
+// Current Mac OS
+SDKROOT = macosx.internal;
+//USE_HEADERMAP = NO;
+VERSION_INFO_PREFIX = __attribute__((visibility("hidden"))) __
+VERSIONING_SYSTEM = apple-generic;

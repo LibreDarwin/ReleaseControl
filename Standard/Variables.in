@@ -1,0 +1,203 @@
+##
+# Variables.in - open-source Apple Release Control makefile (standard variables)
+#ifdef BSDMAKESTYLE
+#
+# BSD make flavor; generated from Variables.in.
+#endif
+#
+# Clean-room reimplementation of the interface provided by Apple's
+# Core OS Makefiles "Standard" variables.  Preserves the public
+# makefile API (variable names, targets, defaults) so that Darwin
+# Core OS projects build unmodified.  Not affiliated with Apple.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+# Copyright (c) 2026 LibreDarwin.  All rights reserved.
+# See the LICENSE file for the full BSD 3-Clause license text.
+##
+
+##
+# Where to find the makefiles
+##
+#ifdef BSDMAKESTYLE
+MAKEFILEPATH = /usr/share/mk
+.ifndef CoreOSMakefiles
+#else
+ifndef CoreOSMakefiles
+#endif
+CoreOSMakefiles = $(MAKEFILEPATH)/CoreOS
+#ifdef BSDMAKESTYLE
+.else
+#else
+else
+#endif
+#ifdef BSDMAKESTYLE
+CoreOSMakefiles != cd $(CoreOSMakefiles) && pwd
+#else
+CoreOSMakefiles := $(shell cd $(CoreOSMakefiles) && pwd)
+#endif
+#ifdef BSDMAKESTYLE
+.endif
+#else
+endif
+#endif
+
+##
+# Verbosity
+##
+#ifdef BSDMAKESTYLE
+.if defined(RC_XBS) && $(RC_XBS) == YES
+#else
+ifeq ($(RC_XBS),YES)
+#endif
+VERBOSE = YES
+#ifdef BSDMAKESTYLE
+.else
+#else
+else
+#endif
+VERBOSE = NO
+#ifdef BSDMAKESTYLE
+.endif
+#else
+endif
+#endif
+
+# Suffix for commands to echo them vs. run silently.
+# VERBOSE=YES -> _v is empty (echo commands) and _q is "@" (quiet target prefixes).
+# VERBOSE=NO  -> _v is "@" and _q is empty (reverse).
+#ifdef BSDMAKESTYLE
+_v = $(VERBOSE:S/YES//:S/NO/@/)
+#else
+_v = $(subst NO,@,$(subst YES,,$(VERBOSE)))
+#endif
+#ifdef BSDMAKESTYLE
+_q = $(VERBOSE:S/NO//:S/YES/@/)
+#else
+_q = $(subst YES,@,$(subst NO,,$(VERBOSE)))
+#endif
+
+##
+# Working directory
+##
+#ifdef BSDMAKESTYLE
+WD != pwd
+#else
+WD := $(shell pwd)
+#endif
+
+##
+# Current user
+##
+#ifdef BSDMAKESTYLE
+USER != whoami
+#else
+USER = $(shell whoami)
+#endif
+
+##
+# Host platform
+##
+#ifdef BSDMAKESTYLE
+.if !exists($(UNAME))
+#else
+ifeq ($(wildcard $(UNAME)),)
+#endif
+OSName    := unknown
+OSVersion := unknown
+#ifdef BSDMAKESTYLE
+.else
+#else
+else
+#endif
+#ifdef BSDMAKESTYLE
+OSName    != $(UNAME) -s
+#else
+OSName    := $(shell $(UNAME) -s)
+#endif
+#ifdef BSDMAKESTYLE
+OSVersion != $(UNAME) -r
+#else
+OSVersion := $(shell $(UNAME) -r)
+#endif
+#ifdef BSDMAKESTYLE
+.endif
+#else
+endif
+#endif
+
+##
+# Unwanted version-control and editor droppings
+##
+Cruft      = CVS RCS SCCS *~ .*~ .nfs\* .*.wmd .svn .DS_Store .git
+Find_Cruft = '(' $(Cruft:%=-name '%' -or) -name '' ')' -print
+Tar_Cruft  = $(Cruft:%=--exclude '%')
+
+##
+# Install ownership and modes
+##
+Install_User            = root
+Install_File_User       = $(Install_User)
+Install_Program_User    = $(Install_User)
+Install_Directory_User  = $(Install_User)
+Install_Group           = wheel
+Install_File_Group      = $(Install_Group)
+Install_Program_Group   = $(Install_Group)
+Install_Directory_Group = $(Install_Group)
+Install_Mask            = 0022
+Install_File_Mode       = 0444
+Install_Program_Mode    = 0555
+Install_Directory_Mode  = 0755
+
+##
+# Standard layout locations
+##
+AUTOMOUNTDIR          = $(NSNETWORKDIR)/Servers
+BINDIR                = /bin
+CORESDIR              = /private/cores
+DEVDIR                = /dev
+ETCDIR                = /private/etc
+LIBDIR                = /lib
+LIBEXECDIR            = $(USRDIR)/libexec
+LOGDIR                = $(VARDIR)/log
+MANDIR                = $(SHAREDIR)/man
+MAILDIR               = $(VARDIR)/mail
+MISCDIR               = $(SHAREDIR)/misc
+NSADMINDIR            = $(NSADMINSUBDIR)
+NSADMINSUBDIR         = /Administration
+NSAPPLICATIONDIR      = $(NSAPPLICATIONSUBDIR)
+NSAPPLICATIONSUBDIR   = /Applications
+NSDEFAULTLOCATION     = $(NSSYSTEMDIR)
+NSDEMODIR             = $(NSAPPLICATIONDIR)$(NSDEMOSUBDIR)
+NSDEMOSUBDIR          = /Extras
+NSDEVELOPERAPPSDIR    = $(NSDEVELOPERDIR)$(NSAPPLICATIONSUBDIR)
+NSDEVELOPERDIR        = $(NSDEVELOPERSUBDIR)
+NSDEVELOPERSUBDIR     = /Developer
+NSDOCUMENTATIONDIR    = $(NSLOCALDIR)$(NSDOCUMENTATIONSUBDIR)
+NSDOCUMENTATIONSUBDIR = $(NSLIBRARYSUBDIR)/Documentation
+NSFRAMEWORKDIR        = $(NSDEFAULTLOCATION)$(NSFRAMEWORKSUBDIR)
+NSFRAMEWORKSUBDIR     = $(NSLIBRARYSUBDIR)/Frameworks
+NSLIBRARYDIR          = $(NSDEFAULTLOCATION)$(NSLIBRARYSUBDIR)
+NSLIBRARYSUBDIR       = /Library
+NSLOCALDIR            = 
+NSNETWORKDIR          = /Network
+NSSOURCEDIR           = $(NSDEVELOPERDIR)$(NSSOURCESUBDIR)
+NSSOURCESUBDIR        = /Source
+NSSYSTEMDIR           = /System
+RUNDIR                = $(VARDIR)/run
+SBINDIR               = /sbin
+SHAREDIR              = $(USRDIR)/share
+SPOOLDIR              = $(VARDIR)/spool
+TMPDIR                = /private/tmp
+USRBINDIR             = $(USRDIR)/bin
+USRDIR                = /usr
+USRINCLUDEDIR         = $(USRDIR)/include
+USRLIBDIR             = $(USRDIR)/lib
+USRSBINDIR            = $(USRDIR)/sbin
+VARDIR                = /private/var
+VARTMPDIR             = $(VARDIR)/tmp
+
+##
+# Targets
+##
+showvar:
+	@echo $($(VAR))
